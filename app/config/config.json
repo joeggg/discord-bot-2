@@ -1,0 +1,10 @@
+{
+    "TIER_MIN": 6, 
+    "TIER_MAX": 2,
+    "EXCLUDELIST": [
+        "China",
+        "Korea",
+        "Ottoman",
+        "Poland"
+    ]
+}
