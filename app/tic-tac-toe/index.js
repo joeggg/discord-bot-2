@@ -1,46 +1,55 @@
 'use strict';
-const ai = require('./ai');
-const display = require('./display');
 const players = require('./playermoves');
+const config = require('../config/config');
+const { SpaceFullError } = require('./util/exceptions');
 
-async function onePlayerRound() {
-    await players.newTurn(1);
-    await ai.newTurn();
+let turn = null;
+let playerOne = true;
+
+async function handle(args) {
+    if (config.playing) {
+        if (args[0] === 'stop') {
+            config.playing = false;
+            return 'Game cancelled';
+        }
+        return turn(args[0]);
+    } else {
+        // Select game mode
+        switch (args[0]) {
+            case '1':
+                turn = onePlayerRound;
+                return 'Unimplemented!';
+            case '2':
+                turn = twoPlayerRound;
+                break;
+            default:
+                return 'Invalid number of players';
+        }
+        // Set playing states
+        config.playing = 'tictactoe';
+        playerOne = true;
+        return players.setupGame();
+    }   
 }
 
-async function twoPlayerRound() {
-    await players.newTurn(1);
-    await players.newTurn(2);
+// Unimplemented
+function onePlayerRound() {}
+
+function twoPlayerRound(args) {
+    try {
+        const response = players.newTurn(playerOne, args);
+        playerOne = !playerOne;
+        return response;
+    } catch (err) {
+        if (err instanceof SpaceFullError) {
+            return 'Space is full!';
+        }
+        // Someone won
+        config.playing = false;
+        return players.endGame(err.message);
+    }
 }
 
-async function run(mode) {
-    let playing = true;
-    let turn = null;
-    if (mode === 1) {
-        turn = onePlayerRound;
-    } else if (mode === 2) {
-        turn = twoPlayerRound;
-    }
-    console.clear();
-    display.drawGrid();
-    while (playing) {
-        try {
-            await turn();
-        }
-        catch (err) {
-            console.log(err.message);
-            playing = false;
-        }
-    }
+module.exports = {
+    handle: handle,
 };
-
-async function launch() {
-    console.clear();
-    display.setupBoard();
-    const mode = await players.selectPlayers();
-    run(mode)
-        .then(() => console.log('Game complete! Exiting'))
-        .catch(err => console.log(`An error occurred: ${err.stack}`));
-}
-
-launch();

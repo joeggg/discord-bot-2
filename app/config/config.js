@@ -3,6 +3,7 @@ const csv = require('csv-parser');
 const fs = require('fs');
 const nconf = require('nconf');
 // Config objects
+let playing = null;
 const phrases = {};
 const players = [];
 const civs = [];
@@ -48,6 +49,7 @@ function getPhrase(key) {
 }
 
 module.exports = {
+    playing: playing,
     civs: civs,
     token: token,
     players: players,

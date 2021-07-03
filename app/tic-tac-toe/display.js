@@ -12,15 +12,14 @@ let board = null;
  *  Draw a horizontal grid line
  */
 function drawSlice(char) {
-    console.log(
-        `${char.repeat(SQUARE_W)}|${char.repeat(SQUARE_W)}|${char.repeat(SQUARE_W)}`
-    );
+    return `${char.repeat(SQUARE_W)}|${char.repeat(SQUARE_W)}|${char.repeat(SQUARE_W)}\n`;
 }
 
 /*
  *  Draw a set of 3 piece squares one layer at a time
  */
 function drawPieces(rowNum) {
+    let output = '';
     for (let h = 0; h < SQUARE_H; h++) {
         for (let colNum = 0; colNum < 3; colNum++) {
             // Draw slice of a column
@@ -44,21 +43,23 @@ function drawPieces(rowNum) {
                     }
                     break;
             }
-            process.stdout.write(section);
+            output += section;
             if (colNum < 2) {
-                process.stdout.write('|');
+                output += '|';
             }
         }
-        console.log();
+        output += '\n';
     }
+    return output;
 }
 
 function drawGrid() {
-    drawPieces(0);
-    drawSlice('-');
-    drawPieces(1);
-    drawSlice('-');
-    drawPieces(2);
+    let grid = drawPieces(0);
+    grid += drawSlice('-');
+    grid += drawPieces(1);
+    grid += drawSlice('-');
+    grid += drawPieces(2);
+    return grid;
 }
 
 function setupBoard() {

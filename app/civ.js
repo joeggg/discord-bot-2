@@ -5,7 +5,7 @@ const config = require('./config/config');
 /**
  * Parse command and return appropriate function
  */
-function handleCiv(args) {
+async function handleCiv(args) {
     if (args.length === 0) {
         return generateCivs(config.players);
     } else {
