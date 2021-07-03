@@ -2,9 +2,7 @@
 const config = require('./config/config');
 
 function handleSay() {
-    const size = config.phrases.say.length;
-    const idx = Math.floor(size*Math.random());
-    return config.phrases.say[idx];
+    return config.getPhrase('say');
 }
 
 function handleChan(_, member) {

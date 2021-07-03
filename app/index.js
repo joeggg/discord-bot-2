@@ -11,6 +11,9 @@ const COMMANDS = {
     'bluechan': meme.handleChan,
 };
 
+/**
+ * Main launch function
+ */
 async function botRun() {
     await config.loadConfig();
     const client = new discord.Client();
@@ -29,9 +32,7 @@ async function botRun() {
                     msg.channel.send('A fatal internal error occurred');
                 }
             } else {
-                const size = config.phrases.wrongcommand.length;
-                const idx = Math.floor(size*Math.random());
-                msg.channel.send(config.phrases.wrongcommand[idx]);
+                msg.channel.send(config.getPhrase('wrongcommand'));
             }
         }
     });
