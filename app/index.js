@@ -28,12 +28,14 @@ async function botRun() {
             const command = args.shift();
 
             if (command in COMMANDS) {
-                COMMANDS[command](args, msg.member).then(response => {
-                    msg.channel.send(response);
-                }).catch(err => {
-                    console.log(err);
-                    msg.channel.send('A fatal internal error occurred');
-                });
+                COMMANDS[command](args, msg.member)
+                    .then(response => {
+                        msg.channel.send(response);
+                    })
+                    .catch(err => {
+                        console.log(err);
+                        msg.channel.send('A fatal internal error occurred');
+                    });
             } else {
                 msg.channel.send(config.getPhrase('wrongcommand'));
             }
@@ -41,12 +43,14 @@ async function botRun() {
         } else if (config.playing) {
             if (msg.member.user.username !== BOTNAME) {
                 const args = msg.content.trim().split(' ');
-                COMMANDS[config.playing](args).then(response => {
-                    msg.channel.send(response);
-                }).catch(err => {
-                    console.log(err);
-                    msg.channel.send('A fatal internal error occurred');
-                });
+                COMMANDS[config.playing](args)
+                    .then(response => {
+                        msg.channel.send(response);
+                    })
+                    .catch(err => {
+                        console.log(err);
+                        msg.channel.send('A fatal internal error occurred');
+                    });
             }
         }
     });
