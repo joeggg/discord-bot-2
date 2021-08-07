@@ -34,7 +34,10 @@ async function loadConfig() {
  *  Load chat message templates
  */
 function loadPhrases() {
-    phrases.say = fs.readFileSync('data/phrases/say.txt').toString().split('\r\n');
+    const rawSay = fs.readFileSync('data/phrases/say.json').toString();
+    phrases.say = JSON.parse(rawSay).data;
+    const rawAmen = fs.readFileSync('data/phrases/amen.json').toString();
+    phrases.amen = JSON.parse(rawAmen).data;
     phrases.chan = fs.readFileSync('data/phrases/chan.txt').toString().split('\r\n');
     phrases.wrongcommand = fs.readFileSync('data/phrases/wrongcommand.txt').toString().split('\r\n');
 }

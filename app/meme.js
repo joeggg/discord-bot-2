@@ -5,6 +5,10 @@ async function handleSay() {
     return config.getPhrase('say');
 }
 
+async function handleAmen() {
+    return config.getPhrase('amen');
+}
+
 async function handleChan(_, member) {
     if (member.user.username === 'ninjoetsu' || member.user.username === 'calamitygreen') {
         return config.phrases.chan[0].replace('%', member.displayName);
@@ -16,4 +20,5 @@ async function handleChan(_, member) {
 module.exports = {
     handleSay: handleSay,
     handleChan: handleChan,
+    handleAmen: handleAmen,
 };

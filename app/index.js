@@ -11,6 +11,7 @@ const BOTNAME = 'bluebot';
 const COMMANDS = {
     'civ': civ.handleCiv,
     'say': meme.handleSay,
+    'amen': meme.handleAmen,
     'bluechan': meme.handleChan,
     'tictactoe': tictactoe.handle,
 };
