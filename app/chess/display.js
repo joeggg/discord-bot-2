@@ -15,7 +15,7 @@ const NUM_SQUARES = 8;
 const BOARD_WIDTH = (NUM_SQUARES*SQUARE_WIDTH) + (NUM_SQUARES+1); // width of squares + borders
 
 /**
- * Builds the whole board text row by row, prints it to console, and displays any game
+ * Builds the whole board text row by row, returns it , and returns any game
  * update that occurred.
  */
  function drawBoard() {
@@ -31,10 +31,9 @@ const BOARD_WIDTH = (NUM_SQUARES*SQUARE_WIDTH) + (NUM_SQUARES+1); // width of sq
     //     output += `    ${letter}   `;
     // }
     output += '\n';
-    console.clear();
-    console.log(output);
-    showNotification();
+    const notification = showNotification();
     setNotification('');
+    return output + + '\n' + notification;
 }
 
 /**

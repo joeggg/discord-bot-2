@@ -5,6 +5,7 @@ const config = require('./config/config');
 const civ = require('./civ');
 const meme = require('./meme');
 const tictactoe = require('./tic-tac-toe/index');
+const chess = require('./chess/index');
 
 const BOTNAME = 'bluebot';
 
@@ -14,6 +15,7 @@ const COMMANDS = {
     'amen': meme.handleAmen,
     'bluechan': meme.handleChan,
     'tictactoe': tictactoe.handle,
+    'chess': chess.handleChess,
 };
 
 /**

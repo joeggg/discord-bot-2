@@ -106,9 +106,7 @@ function setChecking(piece) {
  * Print current stored notification to console if there is one
  */
 function showNotification () {
-    if (notification) {
-        console.log(notification);
-    }
+    return notification;
 }
 
 /**
