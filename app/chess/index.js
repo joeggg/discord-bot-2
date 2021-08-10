@@ -1,53 +1,58 @@
 'use strict';
-const discord = require('discord.js');
-
 const display = require('./display');
 const player = require('./player');
-const { gameOver } = require('./util/config');
+const { gameOver } = require('./util/chessConfig');
 const config = require('../config/config');
 
+const PLAYERS = {true: 'White', false: 'Black'};
 let playerOne = true;
 
-// Program entry point, sets up the initial board and starts the game
+/**
+ * Sets up the initial board
+ */
 function setupGame() {
     display.setupBoard();
-    return display.drawBoard();
+    return display.drawBoard()[1];
 }
 
-// Main game loop, 2 player only currently
-async function run() {
-    while (!gameOver()) {
-        try {
-            await player.turn('White');
-            await player.turn('Black');
-        } catch(err) {
-            console.log(`An unexpected error occurred: ${err.message}`);
-            console.log(err.stack);
-            break;
-        }
-    }
-}
-
-function twoPlayerRound(args) {
-
-}
-
+/**
+ * Handles a chess command, either a call to start a game or a move.
+ *  Input args for a move are a starting point coord
+ *   and a destination coord
+ * 
+ * @param {string[]} args letter/number coordinates
+ * @returns Discord channel message response
+ */
 async function handleChess(args) {
     if (config.playing) {
+        // Stopping a game
         if (args[0] === 'stop') {
             config.playing = false;
             return 'Game cancelled';
         }
+        // Making a move
+        const result = player.turn(PLAYERS[playerOne], args);
+        if (!(result instanceof Array)) {
+            // Result is an error message
+            return result;
+        }
+        const [notification, board] = result;
+
+        if (gameOver()) {
+            config.playing = false;
+            return {content: notification, files: [board]};
+        }
         playerOne = !playerOne;
-        return args[0];
+        const msg = `\n${PLAYERS[playerOne]}'s turn:`;
+
+        return {content: notification+msg, files: [board]};
+
     } else {
+        // Start a new game
+        playerOne = true;
         config.playing = 'chess';
-        const disp = '```' + setupGame() + '```';
-        const embed = new discord.MessageEmbed()
-            .setColor('#0099ff')
-            .setTitle('Chess')
-            .setDescription(disp);
-        return {embed};
+        const msg = `${PLAYERS[playerOne]}'s turn:`;
+        return {content: msg, files: [setupGame()]};
     }
 }
 

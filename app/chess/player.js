@@ -1,17 +1,20 @@
 'use strict';
-const readline = require('readline');
-
+/**
+ * Functions handling the general flow of a turn
+ */
+const chessConfig = require('./util/chessConfig');
 const display = require('./display');
 const { Queen } = require('./pieces/queen');
 const { Pawn } = require('./pieces/pawn');
 const { Rook } = require('./pieces/rook');
-const { getBoard, getPieces, setChecking, setPiece } = require('./util/board');
-const config = require('./util/config');
-
-const reader = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
+const {
+    getBoard,
+    getPieces,
+    setChecking,
+    setPiece,
+    setNotification,
+    undoSetBoard
+} = require('./util/board');
 
 /**
  * Runs a single turn of an input player:
@@ -24,46 +27,42 @@ const reader = readline.createInterface({
  * 
  * @param {string} player 
  */
-async function turn(player) {
-    let waiting = true;
+function turn(player, args) {
     let piece = null;
-    while (waiting) {
-        try {
-            const move = await askPlayer(player);
-            piece = getBoard(move[0]);
-            if (piece.colour === player) {
-                // Handle castling
-                if (move[1] === 'castle') {
-                    if (piece instanceof Rook) {
-                        piece.castle();
-                    } else {
-                        throw new Error('Piece not a rook');
-                    }
-                } 
-                // Handle regular move
-                else {
-                    // Check the piece can move there and set its position
-                    piece.setCoords(move[1], player);
+    try {
+        const move = checkMove(args);
+        piece = getBoard(move[0]);
+        if (piece.colour === player) {
+            // Handle castling
+            if (move[1] === 'castle') {
+                if (piece instanceof Rook) {
+                    piece.castle();
+                } else {
+                    return 'Piece not a rook';
                 }
-                  // Make sure that move didnt put king in check
-                if (getPieces(player)[4].check()) {
-                    undoSetBoard();
-                    setNotification('');
-                    throw new Error('That would be check!');
-                }
-                doPawnConversions(player);
-                piece.firstMove = false;
-                display.drawBoard();
-                waiting = false;
-            } else {
-                console.log('Not one of your pieces');
+            } 
+            // Handle regular move
+            else {
+                // Check the piece can move there and set its position
+                piece.setCoords(move[1]);
             }
-        } catch (err) {
-            console.log(err.message);
-            // console.log(err.stack); // uncomment for info for debugging
+            // Make sure that move didnt put king in check
+            if (getPieces(player)[4].check()) {
+                undoSetBoard();
+                setNotification('');
+                return 'That would be check!';
+            }
+            doPawnConversions(player);
+            piece.firstMove = false;
+        } else {
+            return 'Not one of your pieces';
         }
+    } catch (err) {
+        return err.message;
+        // console.log(err.stack); // uncomment for info for debugging
     }
     handleChecks(player, piece);
+    return display.drawBoard();
 }
 
 /**
@@ -73,21 +72,17 @@ async function turn(player) {
  * @param {string} player 
  * @returns {string}
  */
-async function askPlayer(player) {
-    return new Promise((res, rej) => {
-        reader.question(`${player}'s turn:\n`, move => {
-            try {
-                const [from, to] = move.split(' ');
-                if (from.length === 2 && (to.length === 2 || to === 'castle')) {
-                    res([from, to]);
-                } else {
-                    rej(new Error('Invalid move'));
-                }
-            } catch {
-                rej(new Error('Invalid move'));
-            }
-        });
-    });
+function checkMove(args) {
+    try {
+        const [from, to] = args;
+        if (from.length === 2 && (to.length === 2 || to === 'castle')) {
+            return [from, to];
+        } else {
+            throw new Error('Invalid move');
+        }
+    } catch {
+        throw new Error('Invalid move');
+    }
 }
 
 /**
@@ -99,11 +94,10 @@ function handleChecks(player, piece) {
     if (getPieces(enemyColour)[4].check()) {    // 4 = king
         setChecking(piece);
         if (getPieces(enemyColour)[4].checkmate()) {
-            console.log(`Checkmate ${enemyColour}!`);
-            console.log(`${player} wins!`);
-            config.setGameOver();
+            setNotification(`Checkmate ${enemyColour}!\n${player} wins!`);
+            chessConfig.setGameOver();
         } else {
-            console.log(`${enemyColour} in check!`);
+            setNotification(`${enemyColour} in check!`);
         }
     }
 }
@@ -120,8 +114,8 @@ function doPawnConversions(colour) {
             const end = colour === 'White' ? 0 : 7;
             if (pieces[i]._y === end) {
                 const queen = new Queen(pieces[i]._x, pieces[i]._y, colour);
-                setPiece(queen);
-                pieces[i] = queen; 
+                setPiece(queen); // set in board array
+                pieces[i] = queen; // set in piece array
             }
         }
     }

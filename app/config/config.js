@@ -1,7 +1,9 @@
 'use strict';
-const csv = require('csv-parser');
 const fs = require('fs');
 const nconf = require('nconf');
+
+const csv = require('csv-parser');
+
 // Config objects
 let playing = null;
 const phrases = {};
@@ -31,7 +33,7 @@ async function loadConfig() {
 }
 
 /**
- *  Load chat message templates
+ *  Load chat message phrases
  */
 function loadPhrases() {
     const rawSay = fs.readFileSync('data/phrases/say.json').toString();
@@ -43,7 +45,7 @@ function loadPhrases() {
 }
 
 /**
- *  Return random phrase from input
+ *  Return a random phrase of input type
  * @param {string} key
  */
 function getPhrase(key) {

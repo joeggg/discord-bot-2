@@ -1,4 +1,10 @@
 'use strict';
+/**
+ * Display and board setup
+ */
+const canvas = require('canvas');
+const discord = require('discord.js');
+
 const { Bishop } = require('./pieces/bishop');
 const { King } = require('./pieces/king');
 const { Knight } = require('./pieces/knight');
@@ -15,8 +21,8 @@ const NUM_SQUARES = 8;
 const BOARD_WIDTH = (NUM_SQUARES*SQUARE_WIDTH) + (NUM_SQUARES+1); // width of squares + borders
 
 /**
- * Builds the whole board text row by row, returns it , and returns any game
- * update that occurred.
+ * Builds the whole board text row by row and returns any notification +
+ *  the board text converted to a canvas image as a Discord attachment object.
  */
  function drawBoard() {
     let output = '';
@@ -31,17 +37,24 @@ const BOARD_WIDTH = (NUM_SQUARES*SQUARE_WIDTH) + (NUM_SQUARES+1); // width of sq
     //     output += `    ${letter}   `;
     // }
     output += '\n';
-    const notification = showNotification();
+    const msg = showNotification();
     setNotification('');
-    return output + + '\n' + notification;
+
+    const img = canvas.createCanvas(800,800);
+    const ctx = img.getContext('2d');
+    ctx.font = 'bold 20px monospace';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(output, 0, 0);
+    const attachment = new discord.MessageAttachment(img.toBuffer(), 'board.jpg');
+    return [ msg, attachment ];
 }
 
 /**
  * Creates a board row in text, uses unicode chess pieces placed in the centre of the square
- * and displays each square's coordinate in its top left corner.
+ *  and displays each square's coordinate in its top left corner.
  * 
  * @param {number} y coordinate 
- * @returns {string} 
+ * @returns {string} String version of board
  */
 function createLayer(y) {
     let output = '';
@@ -57,15 +70,17 @@ function createLayer(y) {
                 output += `${index_to_str.X_MAP(x)}${index_to_str.Y_MAP(y)}${' '.repeat(SQUARE_WIDTH-2)}|`;
             } else if (i === 1) {
                 // Draw piece if in centre
-                output += `   ${board[y][x].symbol}   |`;
+                if (!(board[y][x] instanceof Empty)) {
+                    // TODO: Remove this dodgy method of making the board format slightly better
+                    if (x%2===0) output += `  ${board[y][x].symbol}   |`;
+                    else output += `   ${board[y][x].symbol}   |`;
+                } else {
+                    output += `   ${board[y][x].symbol}   |`;
+                }
             } else {
                 output += ' '.repeat(SQUARE_WIDTH) + '|';
             }
         }
-        // Numbers on edge
-        // if (i == 1) {
-        //     output += `  ${8-y}`;
-        // }
         output += '\n';
     }
     return output;

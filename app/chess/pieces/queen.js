@@ -15,11 +15,13 @@ class Queen extends GenericPiece {
             return false;
         }
         // Queen can move like either rook or bishop
+        // Bishop
         if (Math.abs(x-this._x) === Math.abs(y-this._y)) {
             if (this.diagonalPathClear(x, y)) {
                 return true;
             }
         }
+        // Rook
         if (x !== this._x) {
             if (y === this._y) {
                 if (this.straightPathClear(x, y, true)) {

@@ -1,13 +1,6 @@
 'use strict';
 const { str_to_index } = require('../util/mappings');
-const {
-    getBoard,
-    setBoard,
-    undoSetBoard,
-    getPieces,
-    doPawnConversions,
-    setNotification
-} = require('../util/board');
+const { getBoard, setBoard } = require('../util/board');
 
 /**
  * Generic piece class containing the base functionality required for every piece

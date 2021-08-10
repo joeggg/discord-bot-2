@@ -19,13 +19,15 @@ const COMMANDS = {
 };
 
 /**
- * Main launch function
+ * Main launch function, sets the high-level behaviour for handling commands and 
+ *  logs the bot in.
  */
 async function botRun() {
     await config.loadConfig();
     const client = new discord.Client();
 
     client.on('message', (msg) => {
+        // Standard command
         if (msg.content.startsWith('%')) {
             const args = msg.content.substring(1).trim().split(' ');
             const command = args.shift();
@@ -42,7 +44,8 @@ async function botRun() {
             } else {
                 msg.channel.send(config.getPhrase('wrongcommand'));
             }
-
+        
+        // Handle in progress game
         } else if (config.playing) {
             if (msg.member.user.username !== BOTNAME) {
                 const args = msg.content.trim().split(' ');
@@ -53,9 +56,11 @@ async function botRun() {
                     .catch(err => {
                         console.log(err);
                         msg.channel.send('A fatal internal error occurred');
+                        config.playing = false;
                     });
             }
         }
+
     });
     
     client.login(config.token);

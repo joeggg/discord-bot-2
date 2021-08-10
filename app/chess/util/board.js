@@ -1,4 +1,7 @@
 'use strict';
+/**
+ * Board, piece and notification management utility functions
+ */
 const { Empty } = require('../pieces/empty');
 const { str_to_index } = require('./mappings');
 
