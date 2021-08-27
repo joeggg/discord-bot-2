@@ -2,6 +2,7 @@
 const discord = require('discord.js');
 
 const config = require('./config/config');
+const logger = require('./logger');
 const civ = require('./civ');
 const meme = require('./meme');
 const tictactoe = require('./tic-tac-toe/index');
@@ -33,12 +34,14 @@ async function botRun() {
             const command = args.shift();
 
             if (command in COMMANDS) {
+                logger.logInfo(`Received command: ${command} with args: ${args}`);
                 COMMANDS[command](args, msg.member)
                     .then(response => {
                         msg.channel.send(response);
+                        logger.logInfo('Response sent');
                     })
                     .catch(err => {
-                        console.log(err);
+                        logger.logError(err);
                         msg.channel.send('A fatal internal error occurred');
                     });
             } else {
@@ -49,12 +52,14 @@ async function botRun() {
         } else if (config.playing) {
             if (msg.member.user.username !== BOTNAME) {
                 const args = msg.content.trim().split(' ');
+                logger.logInfo(`Turn for ${config.playing} being processed`);
                 COMMANDS[config.playing](args)
                     .then(response => {
                         msg.channel.send(response);
+                        logger.logInfo('Response sent');
                     })
                     .catch(err => {
-                        console.log(err);
+                        logger.logError(err);
                         msg.channel.send('A fatal internal error occurred');
                         config.playing = false;
                     });
@@ -64,7 +69,7 @@ async function botRun() {
     });
     
     client.login(config.token);
-    console.log('bluebot is ready to rumble');
+    logger.logInfo('bluebot is ready to rumble');
 }
 
 botRun();
