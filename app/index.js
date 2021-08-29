@@ -18,7 +18,7 @@ const COMMANDS = {
     'bluechan': meme.handleChan,
     'tictactoe': tictactoe.handle,
     'chess': chess.handleChess,
-    'say_test': backend.say_test,
+    's': backend.say_test,
 };
 
 /**
