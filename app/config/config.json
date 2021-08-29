@@ -1,4 +1,6 @@
 {
+    "backend_endpoint": "tcp://127.0.0.1:5678",
+    "texttospeech_dir":"C:/Users/joeog/OneDrive/Documents/botsounds/output.mp3",
     "TIER_MIN": 6, 
     "TIER_MAX": 2,
     "EXCLUDELIST": [

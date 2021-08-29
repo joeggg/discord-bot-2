@@ -2,11 +2,12 @@
 const discord = require('discord.js');
 
 const config = require('./config/config');
-const logger = require('./logger');
+const logger = require('./util/logger');
 const civ = require('./civ');
 const meme = require('./meme');
 const tictactoe = require('./tic-tac-toe/index');
 const chess = require('./chess/index');
+const backend = require('./backend');
 
 const BOTNAME = 'bluebot';
 
@@ -17,6 +18,7 @@ const COMMANDS = {
     'bluechan': meme.handleChan,
     'tictactoe': tictactoe.handle,
     'chess': chess.handleChess,
+    'say_test': backend.say_test,
 };
 
 /**
