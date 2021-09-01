@@ -60,7 +60,7 @@ async function say_test(text) {
         }
     };
     const response = await router.make_call(req);
-    if (response.status === 'success') {
+    if (response.result === 'success') {
         const file = new discord.MessageAttachment(nconf.get('texttospeech_dir'));
         return {content: '', files: [file]};
 
@@ -68,9 +68,32 @@ async function say_test(text) {
     throw new Error('Backend failure');
 }
 
+async function dice(args){
+    if (!router) setupRouter();
+
+    const req = {
+        command: 'dnd_dice_roll',
+        params: {
+            rolls: args
+        }
+    };
+    const response = await router.make_call(req);
+    if (response.result instanceof Object) {
+        let message = '';
+        for (const [dice, res] of Object.entries(response.result)) {
+            message += `${dice}: [${res}]\n`;
+        }
+        return message;
+    } else if (response.result === 'failure') {
+        throw new Error('Backend failure');
+    }
+    throw new Error('Could not parse results');
+}
+
 let router = null;
 
 module.exports = {
     router,
-    say_test
+    say_test: say_test,
+    dice: dice,
 };

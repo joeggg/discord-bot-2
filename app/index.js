@@ -19,6 +19,7 @@ const COMMANDS = {
     'tictactoe': tictactoe.handle,
     'chess': chess.handleChess,
     's': backend.say_test,
+    'd': backend.dice,
 };
 
 /**
