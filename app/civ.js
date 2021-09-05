@@ -57,7 +57,7 @@ function generateCivs(players) {
     }
     console.log('CIV', `Generated civs: \n${JSON.stringify(output, null, 2)}`);
     config.players = players;
-    return output;
+    return output.join('\n');
 }
 
 module.exports = {
