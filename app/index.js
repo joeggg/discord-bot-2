@@ -20,6 +20,7 @@ const COMMANDS = {
     'chess': chess.handleChess,
     's': backend.say_test,
     'd': backend.dice,
+    'tell': backend.tell,
 };
 
 /**
@@ -28,9 +29,16 @@ const COMMANDS = {
  */
 async function botRun() {
     await config.loadConfig();
-    const client = new discord.Client();
+    backend.setupRouter();
+    const client = new discord.Client({
+        intents: [
+            discord.Intents.FLAGS.GUILDS,
+            discord.Intents.FLAGS.GUILD_MESSAGES,
+            discord.Intents.FLAGS.GUILD_VOICE_STATES,
+        ]
+    });
 
-    client.on('message', (msg) => {
+    client.on('messageCreate', async (msg) => {
         // Standard command
         if (msg.content.startsWith('%')) {
             const args = msg.content.substring(1).trim().split(' ');
@@ -38,10 +46,12 @@ async function botRun() {
 
             if (command in COMMANDS) {
                 logger.logInfo(`Received command: ${command} with args: ${args}`);
-                COMMANDS[command](args, msg.member)
+                COMMANDS[command](args, msg)
                     .then(response => {
-                        msg.channel.send(response);
-                        logger.logInfo('Response sent');
+                        if (response) {
+                            msg.channel.send(response);
+                            logger.logInfo('Response sent');
+                        }
                     })
                     .catch(err => {
                         logger.logError(err);

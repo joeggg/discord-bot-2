@@ -9,11 +9,11 @@ async function handleAmen() {
     return config.getPhrase('amen');
 }
 
-async function handleChan(_, member) {
-    if (member.user.username === 'ninjoetsu' || member.user.username === 'calamitygreen') {
-        return config.phrases.chan[0].replace('%', member.displayName);
+async function handleChan(_, msg) {
+    if (msg.member.user.username === 'ninjoetsu' || msg.member.user.username === 'calamitygreen') {
+        return config.phrases.chan[0].replace('%', msg.member.displayName);
     } else {
-        return config.phrases.chan[1].replace('%', member.displayName);
+        return config.phrases.chan[1].replace('%', msg.member.displayName);
     }
 }
 

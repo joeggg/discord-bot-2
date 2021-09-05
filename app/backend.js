@@ -1,12 +1,17 @@
 'use strict';
 const discord = require('discord.js');
+const discordVoice = require('@discordjs/voice');
 const nconf = require('nconf');
 const zmq = require('zeromq');
 
 const logger = require('./util/logger');
 
 const NS_IN_S = 1000000000;
-const say_config_commands = {'voice': null, 'pitch': null, 'rate': null};
+const say_config_commands = {
+    'voice': null,
+    'pitch': null,
+    'rate': null
+};
 
 /**
  * Basic ZMQ REQ interface with async wrapper to make API calls easily
@@ -52,6 +57,8 @@ class ZMQRouter {
 
 }
 
+let router = null;
+
 function setupRouter() {
     router = new ZMQRouter();
 }
@@ -64,8 +71,6 @@ function setupRouter() {
  * @param {string[]} args 
  */
 async function say_test(args) {
-    if (!router) setupRouter();
-
     if (args.length === 0) return 'No text received';
 
     const req = {command: null, params: {}};
@@ -93,6 +98,57 @@ async function say_test(args) {
 }
 
 /**
+ * Joins a voice channel and plays the requested text
+ * 
+ * @param {string[]} args parsed message text
+ * @param {discord.Message} msg raw incoming message
+ */
+async function tell(args, msg) {
+    if (args.length < 2) {
+        return 'Missing input';
+    }
+    if (msg.mentions.members.size != 1) {
+        return 'Wrong number of mentions';
+    }
+
+    const channel = msg.mentions.members.first().voice.channel;
+    if (channel) {
+        // Send request for voice clip to backend
+        const req = {
+            command: 'say_test',
+            params: {
+                text: args.slice(1).join(' ')
+            }
+        };
+        const response = await router.make_call(req);
+        if (response.code === 1) {
+            return 'Error generating sound';
+        }
+
+        // Create audio/voice objects and play
+        const player = discordVoice.createAudioPlayer();
+        const connection = discordVoice.joinVoiceChannel({
+            channelId: channel.id,
+            guildId: channel.guild.id,
+            adapterCreator: channel.guild.voiceAdapterCreator,
+        });
+        const resource = discordVoice.createAudioResource(nconf.get('texttospeech_dir'));
+        player.play(resource);
+        connection.subscribe(player);
+
+        // Wait for clip to end and cleanup
+        await new Promise(res => {
+            player.on(discordVoice.AudioPlayerStatus.Idle, () => res());
+        });
+        player.stop();
+        connection.disconnect();
+        return;
+    }
+
+    return 'Person is not in a voice channel';
+}
+
+/**
  * Simulates a set of dice rolls for DND,
  *  Args are in the format ['<numRolls><diceType>', ...]
  *  e.g: ['1d4', '4d8', '2d20']
@@ -101,8 +157,6 @@ async function say_test(args) {
  * @param {string[]} args 
  */
 async function dice(args){
-    if (!router) setupRouter();
-
     if (args.length === 0) return 'No arguments';
 
     const req = {
@@ -127,10 +181,9 @@ async function dice(args){
     throw new Error('Backend failure');
 }
 
-let router = null;
-
 module.exports = {
-    router,
+    setupRouter: setupRouter,
     say_test: say_test,
     dice: dice,
+    tell: tell,
 };
