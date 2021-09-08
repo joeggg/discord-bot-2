@@ -47,7 +47,7 @@ class ZMQRouter {
         let end = process.hrtime.bigint();
 
         while (!this.response && end-start < this.maxWait) {
-            await new Promise(res => setTimeout(res, 10));
+            await new Promise(res => setTimeout(res, 1));
             end = process.hrtime.bigint();
         }
         const return_val = this.response;
@@ -70,8 +70,10 @@ function setupRouter() {
  *    - Changes the current voice used, args are ['voice', '<voicename>']
  * @param {string[]} args 
  */
-async function say_test(args) {
-    if (args.length === 0) return 'No text received';
+async function sayTest(args) {
+    if (args.length === 0) {
+        return 'No text received';
+    }
 
     const req = {command: null, params: {}};
     let say = true;
@@ -90,11 +92,37 @@ async function say_test(args) {
             const file = new discord.MessageAttachment(nconf.get('texttospeech_dir'));
             return {content: '', files: [file]};
         }
-    } 
-    if (response.result) {
         return response.result;
+    } else if (response.code === 1) {
+        logger.logBackendError(response.error);
+        return response.error.msg;
     }
-    throw new Error('Backend failure');
+    throw new Error('Unknown failure');
+}
+
+/**
+ * Change the voice preset being used for the Gooogle TTS
+ * 
+ * @param {string[]} args 
+ */
+async function setVoice(args) {
+    if (args.length == 0) {
+        return 'Missing input';
+    }
+
+    const req = {
+        command: 'set_google_preset',
+        params: {
+            preset: args[0]
+        }
+    };
+    const res = await router.make_call(req);
+    if (res.code === 1) {
+        logger.logBackendError(res.error);
+        return res.error.msg;
+    }
+
+    return res.result;
 }
 
 /**
@@ -122,6 +150,7 @@ async function tell(args, msg) {
         };
         const response = await router.make_call(req);
         if (response.code === 1) {
+            logger.logBackendError(response.error);
             return 'Error generating sound';
         }
 
@@ -174,16 +203,17 @@ async function dice(args){
             }
             return message;
         }
+    } else if (response.code === 1) {
+        logger.logBackendError(response.error);
+        return response.error.msg;
     }
-    if (response.result) {
-        return response.result;
-    }
-    throw new Error('Backend failure');
+    throw new Error('Unknown failure');
 }
 
 module.exports = {
     setupRouter: setupRouter,
-    say_test: say_test,
+    sayTest: sayTest,
+    setVoice: setVoice,
     dice: dice,
     tell: tell,
 };
