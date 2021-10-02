@@ -5,6 +5,7 @@ const config = require('./config/config');
 const logger = require('./util/logger');
 const civ = require('./civ');
 const meme = require('./meme');
+const music = require('./music');
 const tictactoe = require('./tic-tac-toe/index');
 const chess = require('./chess/index');
 const backend = require('./backend');
@@ -21,6 +22,7 @@ const COMMANDS = {
     's': backend.say_test,
     'd': backend.dice,
     'tell': backend.tell,
+    'yt': music.handleYt,
 };
 
 /**

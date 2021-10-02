@@ -17,6 +17,9 @@
     "ffmpeg-static": "^4.4.0",
     "libsodium-wrappers": "^0.7.9",
     "nconf": "^0.11.3",
+    "node": "16.6.1",
+    "youtube-dl-exec": "^1.2.14",
+    "ytdl-core": "^4.9.1",
     "zeromq": "^5.2.8"
   }
 }
