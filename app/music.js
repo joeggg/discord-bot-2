@@ -4,15 +4,16 @@ const wait = promisify(setTimeout);
 
 const discordVoice = require('@discordjs/voice');
 const { getInfo } = require('ytdl-core');
-const { ytdl } = require('youtube-dl-exec');
+const ytdl = require('youtube-dl-exec').raw;
 
 const logger = require('./util/logger');
 
-const subscription = null;
+let subscription = null;
 
 
 async function handleYt(args, msg) {
-    const [ command, url ] = args.split(' ');
+    const command = args[0];
+	const url = args[1];
 
     if (command === 'play') {
         return await play(url, msg);
@@ -26,7 +27,9 @@ async function handleYt(args, msg) {
         return await resume();
     } else if (command === 'skip') {
         return await skip();
-    } else {
+    } else if (command === 'quit') {
+		return await quit();
+	} else {
         return 'Invalid yt command';
     }
 }
@@ -36,6 +39,9 @@ async function play(url, msg) {
     if (!msg.member.voice.channel) {
         return 'You aren\'t in a voice channel';
     }
+	if (!url) {
+		return 'No url given';
+	}
 
     if (!subscription) {
         const channel = msg.member.voice.channel;
@@ -44,7 +50,7 @@ async function play(url, msg) {
             discordVoice.joinVoiceChannel({
                 channelId: channel.id,
                 guildId: channel.guild.id,
-                adapterCreator: channel.guild.voiceAdapterCreator,
+				adapterCreator: channel.guild.voiceAdapterCreator,
             })
         );
 
@@ -52,8 +58,8 @@ async function play(url, msg) {
 		try {
 			await discordVoice.entersState(
                 subscription.voiceConnection,
-                VoiceConnectionStatus.Ready,
-                20e3
+                discordVoice.VoiceConnectionStatus.Ready,
+                20000
             );
 		} catch (error) {
 			logger.logError(error);
@@ -61,8 +67,7 @@ async function play(url, msg) {
 		}
 
         try {
-			await queue(url);
-			return `Queued %%${track.title}%%`;
+			return await queue(url);
 		} catch (error) {
 			logger.logError(error);
 			return 'Failed to play track, please try again later!';
@@ -72,6 +77,9 @@ async function play(url, msg) {
 }
 
 async function skip() {
+	if (subscription.queue.length === 0) {
+		return 'No tracks left';
+	}
     subscription.audioPlayer.stop(true);
     return 'Skipped a song';
 }
@@ -91,6 +99,12 @@ async function stop() {
 }
 
 
+async function quit() {
+	subscription.quit();
+	subscription = null;
+}
+
+
 async function queue(url) {
     // Attempt to create a Track from the user's video URL
     const track = await Track.from(url);
@@ -101,12 +115,9 @@ async function queue(url) {
 
 
 class Track {
-	constructor({ url, title, onStart, onFinish, onError }) {
+	constructor({ url, title }) {
 		this.url = url;
 		this.title = title;
-		this.onStart = onStart;
-		this.onFinish = onFinish;
-		this.onError = onError;
 	}
 
 	/**
@@ -136,9 +147,9 @@ class Track {
 			};
 			process
 				.once('spawn', () => {
-					demuxProbe(stream)
+					discordVoice.demuxProbe(stream)
 						.then(probe => resolve(
-                            createAudioResource(
+                            discordVoice.createAudioResource(
                                 probe.stream,
                                 { metadata: this, inputType: probe.type }
                             )
@@ -156,7 +167,7 @@ class Track {
 	 * @param methods Lifecycle callbacks
 	 * @returns The created Track
 	 */
-	async from(url) {
+	 static async from(url) {
 		const info = await getInfo(url);
 		return new Track({
 			title: info.videoDetails.title,
@@ -176,83 +187,15 @@ class MusicSubscription {
 		this.audioPlayer = discordVoice.createAudioPlayer();
 		this.queue = [];
 
-		this.voiceConnection.on('stateChange', async (_, newState) => {
-			if (newState.status === discordVoice.VoiceConnectionStatus.Disconnected) {
-				if (
-                    newState.reason === discordVoice.VoiceConnectionDisconnectReason.WebSocketClose &&
-                    newState.closeCode === 4014
-                ) {
-					/*
-						If the WebSocket closed with a 4014 code, this means that we should not manually attempt to reconnect,
-						but there is a chance the connection will recover itself if the reason of the disconnect was due to
-						switching voice channels. This is also the same code for the bot being kicked from the voice channel,
-						so we allow 5 seconds to figure out which scenario it is. If the bot has been kicked, we should destroy
-						the voice connection.
-					*/
-					try {
-						await entersState(
-                            this.voiceConnection,
-                            discordVoice.VoiceConnectionStatus.Connecting,
-                            5_000
-                        );
-						// Probably moved voice channel
-					} catch {
-						this.voiceConnection.destroy();
-						// Probably removed from voice channel
-					}
-				} else if (this.voiceConnection.rejoinAttempts < 5) {
-					/*
-						The disconnect in this case is recoverable, and we also have <5 repeated attempts so we will reconnect.
-					*/
-					await wait((this.voiceConnection.rejoinAttempts + 1) * 5_000);
-					this.voiceConnection.rejoin();
-				} else {
-					/*
-						The disconnect in this case may be recoverable, but we have no more remaining attempts - destroy.
-					*/
-					this.voiceConnection.destroy();
-				}
-			} else if (newState.status === discordVoice.VoiceConnectionStatus.Destroyed) {
-				/*
-					Once destroyed, stop the subscription
-				*/
-				this.stop();
-			} else if (
-				!this.readyLock &&
-				(
-                    newState.status === discordVoice.VoiceConnectionStatus.Connecting ||
-                    newState.status === discordVoice.VoiceConnectionStatus.Signalling
-                )
-			) {
-				/*
-					In the Signalling or Connecting states, we set a 20 second time limit for the connection to become ready
-					before destroying the voice connection. This stops the voice connection permanently existing in one of these
-					states.
-				*/
-				this.readyLock = true;
-				try {
-					await entersState(this.voiceConnection, discordVoice.VoiceConnectionStatus.Ready, 20_000);
-				} catch {
-					if (
-                        this.voiceConnection.state.status !== discordVoice.VoiceConnectionStatus.Destroyed
-                    ) {
-                        this.voiceConnection.destroy();
-                    }
-				} finally {
-					this.readyLock = false;
-				}
-			}
-		});
-
 		// Configure audio player
-		this.audioPlayer.on ('stateChange', (oldState, newState) => {
+		this.audioPlayer.on ('stateChange', async (oldState, newState) => {
 			if (
                 newState.status === discordVoice.AudioPlayerStatus.Idle &&
                 oldState.status !== discordVoice.AudioPlayerStatus.Idle
             ) {
 				// If the Idle state is entered from a non-Idle state, it means that an audio resource has finished playing.
 				// The queue is then processed to start playing the next track, if one is available.
-				void this.processQueue();
+				this.processQueue();
 			}
 		});
 
@@ -264,15 +207,16 @@ class MusicSubscription {
 	 *
 	 * @param track The track to add to the queue
 	 */
-	enqueue(track) {
+	async enqueue(track) {
+		this.queueLock = false;
 		this.queue.push(track);
-		void this.processQueue();
+		this.processQueue();
 	}
 
     quit() {
         this.queueLock = true;
         this.audioPlayer.stop(true);
-        this.voiceConnection.destroy();
+        this.voiceConnection.disconnect();
     }
 
     next() {
@@ -300,12 +244,15 @@ class MusicSubscription {
 		// Take the first item from the queue. This is guaranteed to exist due to the non-empty check above.
 		const nextTrack = this.queue.shift();
 		try {
+			logger.logInfo('Playing track');
 			// Attempt to convert the Track into an AudioResource (i.e. start streaming the video)
 			const resource = await nextTrack.createAudioResource();
 			this.audioPlayer.play(resource);
+			this.voiceConnection.subscribe(this.audioPlayer);
 			this.queueLock = false;
 		} catch (error) {
 			// If an error occurred, try the next item of the queue instead
+			logger.logError(error);
 			this.queueLock = false;
 			return this.processQueue();
 		}
