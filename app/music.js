@@ -1,7 +1,4 @@
 'use strict';
-const { promisify } = require('util');
-const wait = promisify(setTimeout);
-
 const discordVoice = require('@discordjs/voice');
 const { getInfo } = require('ytdl-core');
 const ytdl = require('youtube-dl-exec').raw;
@@ -29,11 +26,12 @@ async function handleYt(args, msg) {
         return await skip();
     } else if (command === 'quit') {
 		return await quit();
+	} else if (command === 'show') {
+		return await show();
 	} else {
         return 'Invalid yt command';
     }
 }
-
 
 async function play(url, msg) {
     if (!msg.member.voice.channel) {
@@ -65,15 +63,22 @@ async function play(url, msg) {
 			logger.logError(error);
 			return 'Failed to join voice channel within 20 seconds, please try again later!';
 		}
-
-        try {
-			return await queue(url);
-		} catch (error) {
-			logger.logError(error);
-			return 'Failed to play track, please try again later!';
-		}
-
     }
+
+    try {
+        return await queue(url);
+    } catch (error) {
+        logger.logError(error);
+        return 'Failed to play track, please try again later!';
+    }
+}
+
+async function queue(url) {
+    // Attempt to create a Track from the user's video URL
+    const track = await Track.from(url);
+    // Enqueue the track and reply a success message to the user
+    subscription.enqueue(track);
+    return `Queued [${track.title}]`;
 }
 
 async function skip() {
@@ -92,25 +97,25 @@ async function resume() {
     subscription.audioPlayer.unpause();
 }
 
-
 async function stop() {
     subscription.stop();
     return 'Stopped playing music';
 }
-
 
 async function quit() {
 	subscription.quit();
 	subscription = null;
 }
 
-
-async function queue(url) {
-    // Attempt to create a Track from the user's video URL
-    const track = await Track.from(url);
-    // Enqueue the track and reply a success message to the user
-    subscription.enqueue(track);
-    return `Queued %%${track.title}%%`;
+async function show() {
+    if (subscription && subscription.queue.length > 0) {
+        let output = '';
+        for (const track of subscription.queue) {
+            output += `[${track.title}]\n`;
+        }
+        return output;
+    }
+    return 'No queued tracks to show';
 }
 
 
@@ -142,6 +147,7 @@ class Track {
 			const stream = process.stdout;
 			const onError = error => {
 				if (!process.killed) process.kill();
+                logger.logError(error);
 				stream.resume();
 				reject(error);
 			};
@@ -217,9 +223,6 @@ class MusicSubscription {
         this.queueLock = true;
         this.audioPlayer.stop(true);
         this.voiceConnection.disconnect();
-    }
-
-    next() {
     }
 
     clearQueue() {
