@@ -1,5 +1,6 @@
 'use strict';
 const discordVoice = require('@discordjs/voice');
+const { google } = require('googleapis');
 const { getInfo } = require('ytdl-core');
 const ytdl = require('youtube-dl-exec').raw;
 
@@ -10,14 +11,12 @@ let subscription = null;
 
 async function handleYt(args, msg) {
     const command = args[0];
-	const url = args[1];
+	const query = args.slice(1).join(' ');
 
     if (command === 'play') {
-        return await play(url, msg);
-    } else if (command === 'stop') {
-        return await stop();
+        return await play(query, msg);
     } else if (command === 'queue') {
-        return await queue(url);
+        return await queue(query);
     } else if (command === 'pause') {
         return await pause();
     } else if (command === 'resume') {
@@ -33,12 +32,12 @@ async function handleYt(args, msg) {
     }
 }
 
-async function play(url, msg) {
+async function play(query, msg) {
     if (!msg.member.voice.channel) {
         return 'You aren\'t in a voice channel';
     }
-	if (!url) {
-		return 'No url given';
+	if (!query) {
+		return 'No query given';
 	}
 
     if (!subscription) {
@@ -66,22 +65,52 @@ async function play(url, msg) {
     }
 
     try {
-        return await queue(url);
+        return await queue(query);
     } catch (error) {
         logger.logError(error);
         return 'Failed to play track, please try again later!';
     }
 }
 
-async function queue(url) {
-    // Attempt to create a Track from the user's video URL
+async function queue(query) {
+	// Search for the query on Youtube and return the first video's URL
+	const url = await search(query);
+    // Attempt to create a Track from the video URL
     const track = await Track.from(url);
     // Enqueue the track and reply a success message to the user
     subscription.enqueue(track);
     return `Queued [${track.title}]`;
 }
 
+async function search(query) {
+	const auth = new google.auth.GoogleAuth({
+		keyFile: 'token/google_key.json',
+		scopes: ['https://www.googleapis.com/auth/youtube.readonly'],
+	});
+	const service = google.youtube('v3');
+	const data = await new Promise((res, rej) => {
+		service.search.list({
+			auth: auth,
+			part: 'snippet',
+			maxResults: 5,
+			q: query,
+		}, (err, resp) => {
+			if (err) {
+				logger.logError(err);
+				rej('Failure in Google API');
+			} else {
+				res(resp.data.items);
+			}
+		});
+	}); 
+	const url = `https://youtube.com/watch?v=${data[0].id.videoId}`;
+	return url;
+}
+
 async function skip() {
+	if (!subscription) {
+		return 'No music playing';
+	}
 	if (subscription.queue.length === 0) {
 		return 'No tracks left';
 	}
@@ -90,19 +119,23 @@ async function skip() {
 }
 
 async function pause() {
+	if (!subscription) {
+		return 'No music playing';
+	}
     subscription.audioPlayer.pause();
 }
 
 async function resume() {
+	if (!subscription) {
+		return 'No music playing';
+	}
     subscription.audioPlayer.unpause();
 }
 
-async function stop() {
-    subscription.stop();
-    return 'Stopped playing music';
-}
-
 async function quit() {
+	if (!subscription) {
+		return 'No music playing';
+	}
 	subscription.quit();
 	subscription = null;
 }
@@ -251,7 +284,6 @@ class MusicSubscription {
 			// Attempt to convert the Track into an AudioResource (i.e. start streaming the video)
 			const resource = await nextTrack.createAudioResource();
 			this.audioPlayer.play(resource);
-			this.voiceConnection.subscribe(this.audioPlayer);
 			this.queueLock = false;
 		} catch (error) {
 			// If an error occurred, try the next item of the queue instead

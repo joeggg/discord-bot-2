@@ -47,7 +47,7 @@ class ZMQRouter {
         let end = process.hrtime.bigint();
 
         while (!this.response && end-start < this.maxWait) {
-            await new Promise(res => setTimeout(res, 10));
+            await new Promise(res => setTimeout(res, 1));
             end = process.hrtime.bigint();
         }
         const return_val = this.response;
