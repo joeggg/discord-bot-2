@@ -65,6 +65,7 @@ async function play(query, msg) {
     }
 
     try {
+		subscription.audioPlayer.stop(true);
         return await queue(query);
     } catch (error) {
         logger.logError(error);
