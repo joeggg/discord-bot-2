@@ -181,11 +181,11 @@ class Track {
 				return;
 			}
 			const stream = process.stdout;
-			const onError = error => {
+			const onError = _ => {
 				if (!process.killed) process.kill();
-				logger.logError(error);
+				// logger.logError(error);
 				stream.resume();
-				reject(error);
+				reject();
 			};
 			process
 				.once('spawn', () => {
