@@ -8,25 +8,23 @@ const logger = require('./util/logger');
 
 let subscription = null;
 
+const MUSIC_COMMANDS = {
+	'play': play,
+	'queue': queue,
+	'pause': pause,
+	'resume': resume,
+	'skip': skip,
+	'quit': quit,
+	'show': show,
+};
 
 async function handleYt(args, msg) {
 	const command = args[0];
 	const query = args.slice(1).join(' ');
 
-	if (command === 'play') {
-		return await play(query, msg);
-	} else if (command === 'queue') {
-		return await queue(query);
-	} else if (command === 'pause') {
-		return await pause();
-	} else if (command === 'resume') {
-		return await resume();
-	} else if (command === 'skip') {
-		return await skip();
-	} else if (command === 'quit') {
-		return await quit();
-	} else if (command === 'show') {
-		return await show();
+	if (command in MUSIC_COMMANDS) {
+		const func = MUSIC_COMMANDS[command];
+		return await func(query, msg);
 	} else {
 		return 'Invalid yt command';
 	}

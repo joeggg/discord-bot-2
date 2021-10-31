@@ -23,8 +23,8 @@ class ZMQRouter {
         this.sck.connect(address);
         logger.logInfo(`Backend socket connected at ${address}`);
         this.response = null;
-        this.maxWait = 30*NS_IN_S;
-        this.sck.on('message', (res)=> {
+        this.maxWait = 30 * NS_IN_S;
+        this.sck.on('message', (res) => {
             this.response = res;
         });
     }
@@ -37,7 +37,7 @@ class ZMQRouter {
         const response = await this.get_response();
         const parsed = JSON.parse(response);
         const end = process.hrtime.bigint();
-        logger.logInfo(`Python call time taken: ${Number(end-start)/1000000}ms`);
+        logger.logInfo(`Python call time taken: ${Number(end - start) / 1000000}ms`);
 
         return parsed;
     }
@@ -46,7 +46,7 @@ class ZMQRouter {
         const start = process.hrtime.bigint();
         let end = process.hrtime.bigint();
 
-        while (!this.response && end-start < this.maxWait) {
+        while (!this.response && end - start < this.maxWait) {
             await new Promise(res => setTimeout(res, 1));
             end = process.hrtime.bigint();
         }
@@ -73,7 +73,7 @@ function setupRouter() {
 async function say_test(args) {
     if (args.length === 0) return 'No text received';
 
-    const req = {command: null, params: {}};
+    const req = { command: null, params: {} };
     let say = true;
     if (args[0] in say_config_commands) {
         say = false;
@@ -88,9 +88,9 @@ async function say_test(args) {
     if (response.code === 0) {
         if (say) {
             const file = new discord.MessageAttachment(nconf.get('texttospeech_dir'));
-            return {content: '', files: [file]};
+            return { content: '', files: [file] };
         }
-    } 
+    }
     if (response.result) {
         return response.result;
     }
@@ -156,7 +156,7 @@ async function tell(args, msg) {
  * 
  * @param {string[]} args 
  */
-async function dice(args){
+async function dice(args) {
     if (args.length === 0) return 'No arguments';
 
     const req = {

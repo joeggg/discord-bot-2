@@ -62,8 +62,8 @@ async function botRun() {
             } else {
                 msg.channel.send(config.getPhrase('wrongcommand'));
             }
-        
-        // Handle in progress game
+
+            // Handle in progress game
         } else if (config.playing) {
             if (msg.member.user.username !== BOTNAME) {
                 const args = msg.content.trim().split(' ');
@@ -82,7 +82,7 @@ async function botRun() {
         }
 
     });
-    
+
     client.login(config.token);
     logger.logInfo('bluebot is ready to rumble');
 }
