@@ -171,8 +171,7 @@ class Track {
 				{
 					o: '-',
 					q: '',
-					f: 'bestaudio[ext=webm+acodec=opus+asr=48000]/bestaudio',
-					r: '100K',
+					r: '4M',
 				},
 				{ stdio: ['ignore', 'pipe', 'ignore'] },
 			);
