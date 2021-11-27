@@ -124,7 +124,7 @@ async function queueTracks(urls, subscription, channel) {
  * 	Uses the Youtube API for searches
  * 
  * @param {string} query search term or playlist/video URL
- * @returns {Array[string]} List of URLS
+ * @returns {string[]} List of URLS
  */
 async function search(query) {
 	// Already a video link
@@ -171,7 +171,7 @@ async function search(query) {
 /**
  *  Uses Youtube API to get a list of URLS of the first 20 videos of a playlist
  * 
- * @returns {Array[string]} List of URLS
+ * @returns {string[]} List of URLS
  */
 async function getPlaylistVideos(service, auth, playlistId) {
 	const videos = await new Promise((res, rej) => {
