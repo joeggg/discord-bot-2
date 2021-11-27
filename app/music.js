@@ -64,6 +64,7 @@ async function play(query, subKey, channel) {
 
 	try {
 		subscriptions[subKey].audioPlayer.stop(true);
+		subscriptions[subKey].queue = [];
 		return await queue(query, subKey);
 	} catch (error) {
 		logger.logError(error);
@@ -73,12 +74,20 @@ async function play(query, subKey, channel) {
 
 async function queue(query, subKey) {
 	// Search for the query on Youtube and return the first video's URL
-	const url = await search(query);
+	const urls = await search(query);
 	// Attempt to create a Track from the video URL
-	const track = await Track.from(url);
-	// Enqueue the track and reply a success message to the user
-	subscriptions[subKey].enqueue(track);
-	return `Queued [${track.title}]`;
+	if (urls) {
+		let message = '';
+		for (const url of urls) {
+			const track = await Track.from(url);
+			// Enqueue the track and reply a success message to the user
+			await subscriptions[subKey].enqueue(track);
+			message += `Queued [${track.title}]\n`;
+		}
+		return message;
+	} else {
+		return 'Unable to find a URL';
+	}
 }
 
 async function search(query) {
@@ -105,18 +114,45 @@ async function search(query) {
 			}
 		});
 	});
-	const url = `https://youtube.com/watch?v=${data[0].id.videoId}`;
-	return url;
+
+	const itemType = data[0].id.kind;
+	if (itemType === 'youtube#playlist') {
+		const videos = await new Promise((res, rej) => {
+			service.playlistItems.list({
+				auth: auth,
+				part: 'contentDetails',
+				playlistId: data[0].id.playlistId,
+				maxResults: 20,
+			}, (err, resp) => {
+				if (err) {
+					logger.logError(err);
+					logger.logInfo(resp);
+					rej('Failure in Google API');
+				} else {
+					res(resp.data.items);
+				}
+			});
+		});
+		const urls = [];
+		for (const video of videos) {
+			urls.push(`https://youtube.com/watch?v=${video.contentDetails.videoId}`);
+		}
+		return urls;
+
+	} else if (itemType === 'youtube#video') {
+		const url = `https://youtube.com/watch?v=${data[0].id.videoId}`;
+		return [url];
+	}
 }
 
 async function skip(_, subKey) {
 	if (!subscriptions[subKey]) {
 		return 'No music playing';
 	}
-	if (subscription.queue.length === 0) {
+	if (subscriptions[subKey].queue.length === 0) {
 		return 'No tracks left';
 	}
-	subscription.audioPlayer.stop(true);
+	subscriptions[subKey].audioPlayer.stop(true);
 	return 'Skipped a song';
 }
 
@@ -171,7 +207,7 @@ class Track {
 				{
 					o: '-',
 					q: '',
-					r: '8M',
+					r: '4M',
 				},
 				{ stdio: ['ignore', 'pipe', 'ignore'] },
 			);
@@ -180,9 +216,9 @@ class Track {
 				return;
 			}
 			const stream = process.stdout;
-			const onError = _ => {
+			const onError = error => {
 				if (!process.killed) process.kill();
-				// logger.logError(error);
+				logger.logError(error);
 				stream.resume();
 				reject();
 			};
@@ -253,7 +289,7 @@ class MusicSubscription {
 	async enqueue(track) {
 		this.queueLock = false;
 		this.queue.push(track);
-		this.processQueue();
+		await this.processQueue();
 	}
 
 	quit() {
