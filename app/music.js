@@ -22,18 +22,25 @@ async function handleYt(args, msg) {
 	const command = args[0];
 	const queryString = args.slice(1).join(' ');
 	const subKey = `${msg.member.voice.channelId}:${msg.guildId}`;
-	const channel = msg.member.voice.channel;
+	const channels = {
+		voice: msg.member.voice.channel,
+		text: msg.channel,
+	};
 
 	if (command in MUSIC_COMMANDS) {
 		const func = MUSIC_COMMANDS[command];
-		return await func(queryString, subKey, channel);
+		return await func(queryString, subKey, channels);
 	} else {
 		return 'Invalid yt command';
 	}
 }
 
-async function play(query, subKey, channel) {
-	if (!channel) {
+/**
+ *  Joins channel and queues a track/tracks.
+ *  Forces to front of queue if already playing
+ */
+async function play(query, subKey, channels) {
+	if (!channels.voice) {
 		return 'You aren\'t in a voice channel';
 	}
 	if (!query) {
@@ -43,10 +50,11 @@ async function play(query, subKey, channel) {
 	if (!subscriptions[subKey]) {
 		subscriptions[subKey] = new MusicSubscription(
 			discordVoice.joinVoiceChannel({
-				channelId: channel.id,
-				guildId: channel.guild.id,
-				adapterCreator: channel.guild.voiceAdapterCreator,
-			})
+				channelId: channels.voice.id,
+				guildId: channels.voice.guild.id,
+				adapterCreator: channels.voice.guild.voiceAdapterCreator,
+			}),
+			channels.text,
 		);
 
 		// Make sure the connection is ready before processing the user's request
@@ -63,26 +71,30 @@ async function play(query, subKey, channel) {
 	}
 
 	try {
-		subscriptions[subKey].audioPlayer.stop(true);
-		subscriptions[subKey].queue = [];
-		return await queue(query, subKey);
+		return await queue(query, subKey, channels, true);
 	} catch (error) {
 		logger.logError(error);
 		return 'Failed to play track, please try again later!';
 	}
 }
 
-async function queue(query, subKey) {
+/**
+ *  Queues a track/tracks
+ */
+async function queue(query, subKey, channels, force = false) {
 	// Search for the query on Youtube and return the first video's URL
 	const urls = await search(query);
-	// Attempt to create a Track from the video URL
 	if (urls) {
 		let message = '';
-		for (const url of urls) {
-			const track = await Track.from(url);
-			// Enqueue the track and reply a success message to the user
-			await subscriptions[subKey].enqueue(track);
-			message += `Queued [${track.title}]\n`;
+		if (force) {
+			// Make a copy of the queue to append after the forced items
+			const queueCopy = subscriptions[subKey].queue;
+			subscriptions[subKey].queue = [];
+			subscriptions[subKey].audioPlayer.stop(true);
+			await queueTracks(urls, subscriptions[subKey], channels.text);
+			subscriptions[subKey].queue = [...subscriptions[subKey].queue, ...queueCopy];
+		} else {
+			await queueTracks(urls, subscriptions[subKey], channels.text);
 		}
 		return message;
 	} else {
@@ -90,15 +102,46 @@ async function queue(query, subKey) {
 	}
 }
 
-async function search(query) {
-	if (query.includes('youtube.com/watch?v=')) {
-		return query;
+async function queueTracks(urls, subscription, channel) {
+	for (const url of urls) {
+		try {
+			// Attempt to create a Track from the video URL
+			const track = await Track.from(url);
+			// Enqueue the track and reply a success message to the user
+			await subscription.enqueue(track);
+			channel.send(`Queued [${track.title}]\n`);
+		}
+		catch (error) {
+			logger.logInfo(`Failed to queue [${url}]`);
+			logger.logError(error);
+		}
 	}
+}
+
+/**
+ * 	Gets a list of URLs based on an input search term or playlist/video URL
+ *  Returns 1 URL for a video result or up to 20 for a playlist
+ * 	Uses the Youtube API for searches
+ * 
+ * @param {string} query search term or playlist/video URL
+ * @returns {Array[string]} List of URLS
+ */
+async function search(query) {
+	// Already a video link
+	if (query.startsWith('https://www.youtube.com/watch?v=')) {
+		return [query];
+	}
+	// Set up auth and api
 	const auth = new google.auth.GoogleAuth({
 		keyFile: 'token/google_key.json',
 		scopes: ['https://www.googleapis.com/auth/youtube.readonly'],
 	});
 	const service = google.youtube('v3');
+	// Playlist link: return videos from ID
+	if (query.startsWith('https://www.youtube.com/playlist?list=')) {
+		return getPlaylistVideos(service, auth, query.split('=')[1]);
+	}
+	// Search for phrase on youtube api 
 	const data = await new Promise((res, rej) => {
 		service.search.list({
 			auth: auth,
@@ -114,35 +157,43 @@ async function search(query) {
 			}
 		});
 	});
-
 	const itemType = data[0].id.kind;
+	// Return list of links if playlist else just the one video link
 	if (itemType === 'youtube#playlist') {
-		const videos = await new Promise((res, rej) => {
-			service.playlistItems.list({
-				auth: auth,
-				part: 'contentDetails',
-				playlistId: data[0].id.playlistId,
-				maxResults: 20,
-			}, (err, resp) => {
-				if (err) {
-					logger.logError(err);
-					logger.logInfo(resp);
-					rej('Failure in Google API');
-				} else {
-					res(resp.data.items);
-				}
-			});
-		});
-		const urls = [];
-		for (const video of videos) {
-			urls.push(`https://youtube.com/watch?v=${video.contentDetails.videoId}`);
-		}
-		return urls;
+		return getPlaylistVideos(service, auth, data[0].id.playlistId);
 
 	} else if (itemType === 'youtube#video') {
 		const url = `https://youtube.com/watch?v=${data[0].id.videoId}`;
 		return [url];
 	}
+}
+
+/**
+ *  Uses Youtube API to get a list of URLS of the first 20 videos of a playlist
+ * 
+ * @returns {Array[string]} List of URLS
+ */
+async function getPlaylistVideos(service, auth, playlistId) {
+	const videos = await new Promise((res, rej) => {
+		service.playlistItems.list({
+			auth: auth,
+			part: 'contentDetails',
+			playlistId: playlistId,
+			maxResults: 50,
+		}, (err, resp) => {
+			if (err) {
+				logger.logError(err);
+				rej('Failure in Google API');
+			} else {
+				res(resp.data.items);
+			}
+		});
+	});
+	const urls = [];
+	for (const video of videos) {
+		urls.push(`https://youtube.com/watch?v=${video.contentDetails.videoId}`);
+	}
+	return urls;
 }
 
 async function skip(_, subKey) {
@@ -218,7 +269,7 @@ class Track {
 			const stream = process.stdout;
 			const onError = error => {
 				if (!process.killed) process.kill();
-				logger.logError(error);
+				// logger.logError(error);
 				stream.resume();
 				reject();
 			};
@@ -259,11 +310,12 @@ class Track {
  * and it also attaches logic to the audio player and voice connection for error handling and reconnection logic.
  */
 class MusicSubscription {
-	constructor(voiceConnection) {
+	constructor(voiceConnection, channel) {
 		this.voiceConnection = voiceConnection;
 		this.audioPlayer = discordVoice.createAudioPlayer();
 		this.queue = [];
 		this.currentTrack = null;
+		this.channel = channel;
 
 		// Configure audio player
 		this.audioPlayer.on('stateChange', async (oldState, newState) => {
@@ -325,6 +377,7 @@ class MusicSubscription {
 			// Attempt to convert the Track into an AudioResource (i.e. start streaming the video)
 			const resource = await nextTrack.createAudioResource();
 			this.audioPlayer.play(resource);
+			this.channel.send(`Playing track: ${nextTrack.title}`);
 			this.queueLock = false;
 		} catch (error) {
 			// If an error occurred, try the next item of the queue instead
