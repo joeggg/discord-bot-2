@@ -18,7 +18,16 @@ function logError(err, process='MAIN') {
     console.log(err.stack);
 }
 
+function logBackendError(err, process='MAIN') {
+    if (err.trace) {
+        logInfo(`Backend error: ${err.msg}\n${err.trace}`);
+    } else {
+        logInfo(`Backend error: ${err.msg}`, process);
+    }
+}
+
 module.exports = {
     logInfo: logInfo,
     logError: logError,
+    logBackendError: logBackendError,
 };
