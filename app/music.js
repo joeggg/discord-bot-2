@@ -6,7 +6,7 @@ const ytdl = require('youtube-dl-exec').raw;
 
 const logger = require('./util/logger');
 
-let subscription = null;
+let subscriptions = {};
 
 const MUSIC_COMMANDS = {
 	'play': play,
@@ -20,28 +20,28 @@ const MUSIC_COMMANDS = {
 
 async function handleYt(args, msg) {
 	const command = args[0];
-	const query = args.slice(1).join(' ');
+	const queryString = args.slice(1).join(' ');
+	const subKey = `${msg.member.voice.channelId}:${msg.guildId}`;
+	const channel = msg.member.voice.channel;
 
 	if (command in MUSIC_COMMANDS) {
 		const func = MUSIC_COMMANDS[command];
-		return await func(query, msg);
+		return await func(queryString, subKey, channel);
 	} else {
 		return 'Invalid yt command';
 	}
 }
 
-async function play(query, msg) {
-	if (!msg.member.voice.channel) {
+async function play(query, subKey, channel) {
+	if (!channel) {
 		return 'You aren\'t in a voice channel';
 	}
 	if (!query) {
 		return 'No query given';
 	}
 
-	if (!subscription) {
-		const channel = msg.member.voice.channel;
-
-		subscription = new MusicSubscription(
+	if (!subscriptions[subKey]) {
+		subscriptions[subKey] = new MusicSubscription(
 			discordVoice.joinVoiceChannel({
 				channelId: channel.id,
 				guildId: channel.guild.id,
@@ -52,7 +52,7 @@ async function play(query, msg) {
 		// Make sure the connection is ready before processing the user's request
 		try {
 			await discordVoice.entersState(
-				subscription.voiceConnection,
+				subscriptions[subKey].voiceConnection,
 				discordVoice.VoiceConnectionStatus.Ready,
 				20000
 			);
@@ -63,22 +63,31 @@ async function play(query, msg) {
 	}
 
 	try {
-		subscription.audioPlayer.stop(true);
-		return await queue(query);
+		subscriptions[subKey].audioPlayer.stop(true);
+		subscriptions[subKey].queue = [];
+		return await queue(query, subKey);
 	} catch (error) {
 		logger.logError(error);
 		return 'Failed to play track, please try again later!';
 	}
 }
 
-async function queue(query) {
+async function queue(query, subKey) {
 	// Search for the query on Youtube and return the first video's URL
-	const url = await search(query);
+	const urls = await search(query);
 	// Attempt to create a Track from the video URL
-	const track = await Track.from(url);
-	// Enqueue the track and reply a success message to the user
-	subscription.enqueue(track);
-	return `Queued [${track.title}]`;
+	if (urls) {
+		let message = '';
+		for (const url of urls) {
+			const track = await Track.from(url);
+			// Enqueue the track and reply a success message to the user
+			await subscriptions[subKey].enqueue(track);
+			message += `Queued [${track.title}]\n`;
+		}
+		return message;
+	} else {
+		return 'Unable to find a URL';
+	}
 }
 
 async function search(query) {
@@ -105,48 +114,75 @@ async function search(query) {
 			}
 		});
 	});
-	const url = `https://youtube.com/watch?v=${data[0].id.videoId}`;
-	return url;
+
+	const itemType = data[0].id.kind;
+	if (itemType === 'youtube#playlist') {
+		const videos = await new Promise((res, rej) => {
+			service.playlistItems.list({
+				auth: auth,
+				part: 'contentDetails',
+				playlistId: data[0].id.playlistId,
+				maxResults: 20,
+			}, (err, resp) => {
+				if (err) {
+					logger.logError(err);
+					logger.logInfo(resp);
+					rej('Failure in Google API');
+				} else {
+					res(resp.data.items);
+				}
+			});
+		});
+		const urls = [];
+		for (const video of videos) {
+			urls.push(`https://youtube.com/watch?v=${video.contentDetails.videoId}`);
+		}
+		return urls;
+
+	} else if (itemType === 'youtube#video') {
+		const url = `https://youtube.com/watch?v=${data[0].id.videoId}`;
+		return [url];
+	}
 }
 
-async function skip() {
-	if (!subscription) {
+async function skip(_, subKey) {
+	if (!subscriptions[subKey]) {
 		return 'No music playing';
 	}
-	if (subscription.queue.length === 0) {
+	if (subscriptions[subKey].queue.length === 0) {
 		return 'No tracks left';
 	}
-	subscription.audioPlayer.stop(true);
+	subscriptions[subKey].audioPlayer.stop(true);
 	return 'Skipped a song';
 }
 
-async function pause() {
-	if (!subscription) {
+async function pause(_, subKey) {
+	if (!subscriptions[subKey]) {
 		return 'No music playing';
 	}
-	subscription.audioPlayer.pause();
+	subscriptions[subKey].audioPlayer.pause();
 }
 
-async function resume() {
-	if (!subscription) {
+async function resume(_, subKey) {
+	if (!subscriptions[subKey]) {
 		return 'No music playing';
 	}
-	subscription.audioPlayer.unpause();
+	subscriptions[subKey].audioPlayer.unpause();
 }
 
-async function quit() {
-	if (!subscription) {
+async function quit(_, subKey) {
+	if (!subscriptions[subKey]) {
 		return 'No music playing';
 	}
-	subscription.quit();
-	subscription = null;
+	subscriptions[subKey].quit();
+	subscriptions[subKey] = null;
 }
 
-async function show() {
-	if (subscription && subscription.currentTrack) {
+async function show(_, subKey) {
+	if (subscriptions[subKey] && subscriptions[subKey].currentTrack) {
 		let output = '  Current queue:\n';
-		output += `| ->${subscription.currentTrack.title}\n`;
-		for (const track of subscription.queue) {
+		output += `| ->${subscriptions[subKey].currentTrack.title}\n`;
+		for (const track of subscriptions[subKey].queue) {
 			output += `|   ${track.title}\n`;
 		}
 		return output;
@@ -180,9 +216,9 @@ class Track {
 				return;
 			}
 			const stream = process.stdout;
-			const onError = _ => {
+			const onError = error => {
 				if (!process.killed) process.kill();
-				// logger.logError(error);
+				logger.logError(error);
 				stream.resume();
 				reject();
 			};
@@ -253,7 +289,7 @@ class MusicSubscription {
 	async enqueue(track) {
 		this.queueLock = false;
 		this.queue.push(track);
-		this.processQueue();
+		await this.processQueue();
 	}
 
 	quit() {
