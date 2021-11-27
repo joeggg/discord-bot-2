@@ -6,7 +6,7 @@ const ytdl = require('youtube-dl-exec').raw;
 
 const logger = require('./util/logger');
 
-let subscription = null;
+let subscriptions = {};
 
 const MUSIC_COMMANDS = {
 	'play': play,
@@ -20,28 +20,28 @@ const MUSIC_COMMANDS = {
 
 async function handleYt(args, msg) {
 	const command = args[0];
-	const query = args.slice(1).join(' ');
+	const queryString = args.slice(1).join(' ');
+	const subKey = `${msg.member.voice.channelId}:${msg.guildId}`;
+	const channel = msg.member.voice.channel;
 
 	if (command in MUSIC_COMMANDS) {
 		const func = MUSIC_COMMANDS[command];
-		return await func(query, msg);
+		return await func(queryString, subKey, channel);
 	} else {
 		return 'Invalid yt command';
 	}
 }
 
-async function play(query, msg) {
-	if (!msg.member.voice.channel) {
+async function play(query, subKey, channel) {
+	if (!channel) {
 		return 'You aren\'t in a voice channel';
 	}
 	if (!query) {
 		return 'No query given';
 	}
 
-	if (!subscription) {
-		const channel = msg.member.voice.channel;
-
-		subscription = new MusicSubscription(
+	if (!subscriptions[subKey]) {
+		subscriptions[subKey] = new MusicSubscription(
 			discordVoice.joinVoiceChannel({
 				channelId: channel.id,
 				guildId: channel.guild.id,
@@ -52,7 +52,7 @@ async function play(query, msg) {
 		// Make sure the connection is ready before processing the user's request
 		try {
 			await discordVoice.entersState(
-				subscription.voiceConnection,
+				subscriptions[subKey].voiceConnection,
 				discordVoice.VoiceConnectionStatus.Ready,
 				20000
 			);
@@ -63,21 +63,21 @@ async function play(query, msg) {
 	}
 
 	try {
-		subscription.audioPlayer.stop(true);
-		return await queue(query);
+		subscriptions[subKey].audioPlayer.stop(true);
+		return await queue(query, subKey);
 	} catch (error) {
 		logger.logError(error);
 		return 'Failed to play track, please try again later!';
 	}
 }
 
-async function queue(query) {
+async function queue(query, subKey) {
 	// Search for the query on Youtube and return the first video's URL
 	const url = await search(query);
 	// Attempt to create a Track from the video URL
 	const track = await Track.from(url);
 	// Enqueue the track and reply a success message to the user
-	subscription.enqueue(track);
+	subscriptions[subKey].enqueue(track);
 	return `Queued [${track.title}]`;
 }
 
@@ -109,8 +109,8 @@ async function search(query) {
 	return url;
 }
 
-async function skip() {
-	if (!subscription) {
+async function skip(_, subKey) {
+	if (!subscriptions[subKey]) {
 		return 'No music playing';
 	}
 	if (subscription.queue.length === 0) {
@@ -120,33 +120,33 @@ async function skip() {
 	return 'Skipped a song';
 }
 
-async function pause() {
-	if (!subscription) {
+async function pause(_, subKey) {
+	if (!subscriptions[subKey]) {
 		return 'No music playing';
 	}
-	subscription.audioPlayer.pause();
+	subscriptions[subKey].audioPlayer.pause();
 }
 
-async function resume() {
-	if (!subscription) {
+async function resume(_, subKey) {
+	if (!subscriptions[subKey]) {
 		return 'No music playing';
 	}
-	subscription.audioPlayer.unpause();
+	subscriptions[subKey].audioPlayer.unpause();
 }
 
-async function quit() {
-	if (!subscription) {
+async function quit(_, subKey) {
+	if (!subscriptions[subKey]) {
 		return 'No music playing';
 	}
-	subscription.quit();
-	subscription = null;
+	subscriptions[subKey].quit();
+	subscriptions[subKey] = null;
 }
 
-async function show() {
-	if (subscription && subscription.currentTrack) {
+async function show(_, subKey) {
+	if (subscriptions[subKey] && subscriptions[subKey].currentTrack) {
 		let output = '  Current queue:\n';
-		output += `| ->${subscription.currentTrack.title}\n`;
-		for (const track of subscription.queue) {
+		output += `| ->${subscriptions[subKey].currentTrack.title}\n`;
+		for (const track of subscriptions[subKey].queue) {
 			output += `|   ${track.title}\n`;
 		}
 		return output;
@@ -171,7 +171,7 @@ class Track {
 				{
 					o: '-',
 					q: '',
-					r: '4M',
+					r: '8M',
 				},
 				{ stdio: ['ignore', 'pipe', 'ignore'] },
 			);
