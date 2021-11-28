@@ -9,6 +9,7 @@ const logger = require('./util/logger');
 let subscriptions = {};
 
 const MUSIC_COMMANDS = {
+	'help': help,
 	'play': play,
 	'queue': queue,
 	'pause': pause,
@@ -31,9 +32,20 @@ async function handleYt(args, msg) {
 		const func = MUSIC_COMMANDS[command];
 		return await func(queryString, subKey, channels);
 	} else {
-		return 'Invalid yt command';
+		return 'Invalid yt command, type ```%yt help``` for correct usage';
 	}
 }
+
+
+async function help() {
+	return '\
+```%yt play <search term or URL>``` Start playing song(s), accepts videos or playlists. \
+Forces song(s) to start of queue if already playing\
+```%yt queue <search term or URL>``` Adds song(s) to the end of the queue\
+```%yt skip/pause/resume``` Self explanatory\
+```%yt quit``` Stop all play and leave the channel';
+}
+
 
 /**
  *  Joins channel and queues a track/tracks.
@@ -390,5 +402,6 @@ class MusicSubscription {
 
 
 module.exports = {
+	subscriptions: subscriptions,
 	handleYt: handleYt,
 };
