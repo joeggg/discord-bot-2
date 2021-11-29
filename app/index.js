@@ -52,7 +52,6 @@ async function botRun() {
                 logger.logInfo(`Received command: ${command} with args: ${args}`);
                 COMMANDS[command](args, msg)
                     .then(response => {
-                        console.log(response);
                         if (response) {
                             msg.channel.send(response);
                             logger.logInfo('Response sent');
