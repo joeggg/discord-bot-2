@@ -9,7 +9,7 @@ let playing = null;
 const phrases = {};
 const players = [];
 const civs = [];
-const token = fs.readFileSync('token/toe.txt').toString();
+const token = fs.readFileSync('token/toe.txt').toString().replace('\n', '');
 
 /**
  *  Load civ list from csv  
@@ -17,9 +17,9 @@ const token = fs.readFileSync('token/toe.txt').toString();
 async function loadLists(path) {
     return await new Promise(resolve => {
         fs.createReadStream(path)
-        .pipe(csv())
-        .on('data', (data) => civs.push(data))
-        .on('end', () => resolve(civs));
+            .pipe(csv())
+            .on('data', (data) => civs.push(data))
+            .on('end', () => resolve(civs));
     });
 }
 
@@ -49,7 +49,7 @@ function loadPhrases() {
  * @param {string} key
  */
 function getPhrase(key) {
-    const idx = Math.floor(phrases[key].length*Math.random());
+    const idx = Math.floor(phrases[key].length * Math.random());
     return phrases[key][idx];
 }
 
