@@ -3,6 +3,8 @@ const discordVoice = require('@discordjs/voice');
 const { google } = require('googleapis');
 const { getInfo } = require('ytdl-core');
 const ytdl = require('youtube-dl-exec').raw;
+const stream = require('youtube-audio-stream');
+const lame = require('@suldashi/lame');
 
 const logger = require('./util/logger');
 
@@ -22,7 +24,7 @@ const MUSIC_COMMANDS = {
 async function handleYt(args, msg) {
 	const command = args[0];
 	const queryString = args.slice(1).join(' ');
-	const subKey = `${msg.member.voice.channelId}:${msg.guildId}`;
+	const subKey = `${msg.guildId}`;
 	const channels = {
 		voice: msg.member.voice.channel,
 		text: msg.channel,
@@ -259,44 +261,45 @@ class Track {
 	constructor({ url, title }) {
 		this.url = url;
 		this.title = title;
+		this.decoder = new lame.Decoder({});
 	}
 
+	async streamAudio() {
+		for await (const chunk of stream(
+			this.url,
+			{
+				o: '-',
+				q: '',
+				r: '8M',
+			}
+		)) {
+			this.decoder.write(chunk);
+		}
+	}
 	/**
 	 * Creates an AudioResource from this Track.
 	 */
 	createAudioResource() {
 		return new Promise((resolve, reject) => {
-			const process = ytdl(
-				this.url,
-				{
-					o: '-',
-					q: '',
-					r: '16M',
-				},
-				{ stdio: ['ignore', 'pipe', 'ignore'] },
-			);
-			if (!process.stdout) {
-				reject(new Error('No stdout'));
-				return;
-			}
-			const stream = process.stdout;
+			this.streamAudio();
+			// if (!process.stdout) {
+			// 	reject(new Error('No stdout'));
+			// 	return;
+			// }
+			// const stream = process.stdout;
 			const onError = error => {
-				if (!process.killed) process.kill();
-				// logger.logError(error);
-				stream.resume();
-				reject();
+				// if (!process.killed) process.kill();
+				logger.logError(error);
+				// stream.resume();
+				// reject();
 			};
-			process
-				.once('spawn', () => {
-					discordVoice.demuxProbe(stream)
-						.then(probe => resolve(
-							discordVoice.createAudioResource(
-								probe.stream,
-								{ metadata: this, inputType: probe.type }
-							)
-						))
-						.catch(onError);
-				})
+			discordVoice.demuxProbe(this.decoder)
+				.then(probe => resolve(
+					discordVoice.createAudioResource(
+						probe.stream,
+						{ metadata: this, inputType: probe.type }
+					)
+				))
 				.catch(onError);
 		});
 	}
