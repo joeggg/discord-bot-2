@@ -271,6 +271,7 @@ class Track {
 				{
 					o: '-',
 					q: '',
+					f: 'bestaudio[ext=m4a]',
 					r: '16M',
 				},
 				{ stdio: ['ignore', 'pipe', 'ignore'] },
