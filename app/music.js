@@ -42,7 +42,7 @@ async function help() {
 ```%yt play <search term or URL>``` Start playing song(s), accepts videos or playlists. \
 Forces song(s) to start of queue if already playing\
 ```%yt queue <search term or URL>``` Adds song(s) to the end of the queue\
-```%yt show displays the current queue``` \
+```%yt show``` Displays the current queue \
 ```%yt skip/pause/resume``` Self explanatory\
 ```%yt quit``` Stop all play and leave the channel';
 }
