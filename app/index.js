@@ -5,6 +5,7 @@ const config = require('./config/config');
 const logger = require('./util/logger');
 const civ = require('./civ');
 const meme = require('./meme');
+const music = require('./music');
 const tictactoe = require('./tic-tac-toe/index');
 const chess = require('./chess/index');
 const backend = require('./backend');
@@ -22,6 +23,8 @@ const COMMANDS = {
     'd': backend.dice,
     'tell': backend.tell,
     'voice': backend.setVoice,
+    'yt': music.handleYt,
+    'ta': backend.testAsync,
 };
 
 /**
@@ -61,8 +64,8 @@ async function botRun() {
             } else {
                 msg.channel.send(config.getPhrase('wrongcommand'));
             }
-        
-        // Handle in progress game
+
+            // Handle in progress game
         } else if (config.playing) {
             if (msg.member.user.username !== BOTNAME) {
                 const args = msg.content.trim().split(' ');
@@ -81,7 +84,7 @@ async function botRun() {
         }
 
     });
-    
+
     client.login(config.token);
     logger.logInfo('bluebot is ready to rumble');
 }

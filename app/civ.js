@@ -46,7 +46,7 @@ function generateCivs(players) {
     for (const player of players) {
         let select, tier;
         do {
-            select = Math.floor(civList.length*Math.random());
+            select = Math.floor(civList.length * Math.random());
             tier = parseInt(civList[select].Tier);
         } while (tier < max || tier > min || excludelist.includes(civList[select].Name));
 

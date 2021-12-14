@@ -5,6 +5,7 @@ const nconf = require('nconf');
 const zmq = require('zeromq');
 
 const logger = require('./util/logger');
+const { subscriptions } = require('./music');
 
 const NS_IN_S = 1000000000;
 const say_config_commands = {
@@ -18,13 +19,13 @@ const say_config_commands = {
  */
 class ZMQRouter {
     constructor() {
-        this.sck = zmq.socket('req');
+        this.sck = zmq.socket('dealer');
         const address = nconf.get('backend_endpoint');
         this.sck.connect(address);
         logger.logInfo(`Backend socket connected at ${address}`);
         this.response = null;
-        this.maxWait = 30*NS_IN_S;
-        this.sck.on('message', (res)=> {
+        this.maxWait = 30 * NS_IN_S;
+        this.sck.on('message', (res) => {
             this.response = res;
         });
     }
@@ -37,7 +38,7 @@ class ZMQRouter {
         const response = await this.get_response();
         const parsed = JSON.parse(response);
         const end = process.hrtime.bigint();
-        logger.logInfo(`Python call time taken: ${Number(end-start)/1000000}ms`);
+        logger.logInfo(`Python call time taken: ${Number(end - start) / 1000000}ms`);
 
         return parsed;
     }
@@ -46,7 +47,7 @@ class ZMQRouter {
         const start = process.hrtime.bigint();
         let end = process.hrtime.bigint();
 
-        while (!this.response && end-start < this.maxWait) {
+        while (!this.response && end - start < this.maxWait) {
             await new Promise(res => setTimeout(res, 1));
             end = process.hrtime.bigint();
         }
@@ -75,7 +76,7 @@ async function sayTest(args) {
         return 'No text received';
     }
 
-    const req = {command: null, params: {}};
+    const req = { command: null, params: {} };
     let say = true;
     if (args[0] in say_config_commands) {
         say = false;
@@ -90,8 +91,21 @@ async function sayTest(args) {
     if (response.code === 0) {
         if (say) {
             const file = new discord.MessageAttachment(nconf.get('texttospeech_dir'));
-            return {content: '', files: [file]};
+            return { content: 'Listen', files: [file] };
         }
+        return response.result;
+    } else if (response.code === 1) {
+        logger.logBackendError(response.error);
+        return response.error.msg;
+    }
+    throw new Error('Unknown failure');
+}
+
+async function testAsync() {
+    const req = { command: 'test_async', params: {} };
+
+    const response = await router.make_call(req);
+    if (response.code === 0) {
         return response.result;
     } else if (response.code === 1) {
         logger.logBackendError(response.error);
@@ -155,23 +169,35 @@ async function tell(args, msg) {
         }
 
         // Create audio/voice objects and play
-        const player = discordVoice.createAudioPlayer();
-        const connection = discordVoice.joinVoiceChannel({
-            channelId: channel.id,
-            guildId: channel.guild.id,
-            adapterCreator: channel.guild.voiceAdapterCreator,
-        });
-        const resource = discordVoice.createAudioResource(nconf.get('texttospeech_dir'));
-        player.play(resource);
-        connection.subscribe(player);
+        const subKey = `${channel.id}:${msg.guildId}`;
+        if (!subscriptions[subKey]) {
+            const player = discordVoice.createAudioPlayer();
+            const connection = discordVoice.joinVoiceChannel({
+                channelId: channel.id,
+                guildId: channel.guild.id,
+                adapterCreator: channel.guild.voiceAdapterCreator,
+            });
+            const resource = discordVoice.createAudioResource(nconf.get('texttospeech_dir'));
+            player.play(resource);
+            connection.subscribe(player);
 
-        // Wait for clip to end and cleanup
-        await new Promise(res => {
-            player.on(discordVoice.AudioPlayerStatus.Idle, () => res());
-        });
-        player.stop();
-        connection.disconnect();
-        return;
+            // Wait for clip to end and cleanup
+            await new Promise(res => {
+                player.on(discordVoice.AudioPlayerStatus.Idle, () => res());
+            });
+            player.stop();
+            connection.disconnect();
+            return;
+        } else {
+            subscriptions[subKey].enqueue({
+                createAudioResource: async () => {
+                    return discordVoice.createAudioResource(nconf.get('texttospeech_dir'));
+                },
+                title: `Message for ${msg.mentions.members.first().displayName}`
+            });
+            subscriptions[subKey].audioPlayer.stop(true);
+            return;
+        }
     }
 
     return 'Person is not in a voice channel';
@@ -185,7 +211,7 @@ async function tell(args, msg) {
  * 
  * @param {string[]} args 
  */
-async function dice(args){
+async function dice(args) {
     if (args.length === 0) return 'No arguments';
 
     const req = {
@@ -213,6 +239,7 @@ async function dice(args){
 module.exports = {
     setupRouter: setupRouter,
     sayTest: sayTest,
+    testAsync: testAsync,
     setVoice: setVoice,
     dice: dice,
     tell: tell,
