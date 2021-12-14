@@ -15,12 +15,12 @@ function getShortDate() {
 }
 
 function logInfo(msg, process = 'MAIN') {
-    fs.writeFileSync(nconf.get('log_file_dir'), `[${getShortDate()}]-[${process}]: ${msg}`);
+    fs.appendFileSync(nconf.get('log_file_dir'), `[${getShortDate()}]-[${process}]: ${msg}`);
 }
 
 function logError(err, process = 'MAIN') {
-    fs.writeFileSync(nconf.get('log_file_dir'), `[${getShortDate()}]-[${process}]: ${err}`);
-    fs.writeFileSync(nconf.get('log_file_dir'), err.stack);
+    fs.appendFileSync(nconf.get('log_file_dir'), `[${getShortDate()}]-[${process}]: ${err}`);
+    fs.appendFileSync(nconf.get('log_file_dir'), err.stack);
 }
 
 function logBackendError(err, process = 'MAIN') {
